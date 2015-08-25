@@ -43,7 +43,7 @@ typedef struct _SLI_SECTION
 	ULONGLONG uSize_file;
 	ULONGLONG uSize_virtual;
 	ULONGLONG uAttributes;
-	wchar_t szSectionName[IMAGE_SIZEOF_SHORT_NAME];
+	wchar_t szSectionName[IMAGE_SIZEOF_SHORT_NAME + 1];
 }SLI_SECTION, *PSLI_SECTION;
 
 
@@ -52,7 +52,7 @@ typedef struct _SLI_OPTIONAL_HEADER
 {
 	wchar_t szItem_Name[32];
 	wchar_t szItem_Value[32];
-}SLI_OPTIONAL_HEADER,*PSLI_OPTIONAL_HEADER;
+}SLI_OPTIONAL_HEADER, *PSLI_OPTIONAL_HEADER;
 
 
 //Export Functions
@@ -61,7 +61,7 @@ typedef struct _SLI_EXPORT_FUNCTIONS
 	DWORD dwIndex;
 	ULONGLONG uFunction_Address;
 	wchar_t szFunctionName[120];
-}SLI_EXPORT_FUNCTIONS,*PSLI_EXPORT_FUNCTIONS;
+}SLI_EXPORT_FUNCTIONS, *PSLI_EXPORT_FUNCTIONS;
 
 //Export table
 typedef struct _SLI_EXPORT_TABLE
@@ -74,8 +74,16 @@ typedef struct _SLI_EXPORT_TABLE
 	ULONGLONG uIndex_Table_Address;
 	ULONGLONG uName_Table_Address;
 	vector<SLI_EXPORT_FUNCTIONS> m_vecExportFunc;
-}SLI_EXPORT_TABLE,*PSLI_EXPORT_TABLE;
+}SLI_EXPORT_TABLE, *PSLI_EXPORT_TABLE;
 
+
+//Resource table
+typedef struct _SLI_RESOURCE_TABLE
+{
+	wchar_t szTypeName[32];
+	DWORD dwType;
+
+}SLI_RESOURCE_TABLE, *PSLI_RESOURCE_TABLE;
 
 class CSLI_PE
 {
@@ -83,12 +91,12 @@ public:
 	CSLI_PE();
 	~CSLI_PE();
 
-public:
+private:
 	BOOL SLI_is_PE(ULONGLONG uAddress, DWORD dwSize);
 
 	BOOL SLI_acquire_Data_Dir(ULONGLONG uAddress);
 
-	ULONGLONG SLI_acquire_Sections(ULONGLONG uAddress);
+	BOOL SLI_acquire_Sections(ULONGLONG uAddress);
 
 	BOOL SLI_acquire_ExportTable(ULONGLONG uAddress);
 
@@ -104,13 +112,19 @@ public:
 
 	BOOL SLI_is_x64(ULONGLONG uAddress);
 
-	ULONGLONG SLI_rVA_2_Offset(ULONGLONG rVA,ULONGLONG uAddress);
+	ULONGLONG SLI_rVA_2_Offset(ULONGLONG rVA, ULONGLONG uAddress);
 
 	ULONGLONG SLI_Offset_2_rVA(ULONGLONG Offset, ULONGLONG uAddress);
 
 	ULONGLONG SLI_rVA_2_VA(ULONGLONG rVA, ULONGLONG uAddress);
 
 	wchar_t* SLI_acquire_Architecture(WORD wMachine);
+
+	BOOL SLI_Load_File(wchar_t* szFilePath);
+
+public:
+
+	BOOL SLI_acquire_PE(wchar_t* szFilePath);
 
 	vector<SLI_DATA_DIR> m_vecDataDir;
 
@@ -125,5 +139,7 @@ public:
 	ULONGLONG m_LoadedAddress;
 
 	SLI_EXPORT_TABLE m_Export;
+
+	DWORD m_dwSize;
 };
 

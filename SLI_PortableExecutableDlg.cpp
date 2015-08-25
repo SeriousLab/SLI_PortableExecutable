@@ -6,6 +6,7 @@
 #include "SLI_PortableExecutable.h"
 #include "SLI_PortableExecutableDlg.h"
 #include "afxdialogex.h"
+#include "SLI_EXPORT.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -19,13 +20,13 @@ class CAboutDlg : public CDialogEx
 public:
 	CAboutDlg();
 
-// Dialog Data
+	// Dialog Data
 	enum { IDD = IDD_ABOUTBOX };
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
-// Implementation
+	// Implementation
 protected:
 	DECLARE_MESSAGE_MAP()
 };
@@ -48,7 +49,7 @@ END_MESSAGE_MAP()
 
 
 CSLI_PortableExecutableDlg::CSLI_PortableExecutableDlg(CWnd* pParent /*=NULL*/)
-	: CDialogEx(CSLI_PortableExecutableDlg::IDD, pParent)
+: CDialogEx(CSLI_PortableExecutableDlg::IDD, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -56,12 +57,21 @@ CSLI_PortableExecutableDlg::CSLI_PortableExecutableDlg(CWnd* pParent /*=NULL*/)
 void CSLI_PortableExecutableDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_BASIC_INFO, m_Basic_info);
+	DDX_Control(pDX, IDC_ADDITIONAL_INFO, m_Additional_info);
+	DDX_Control(pDX, IDC_SECTION_INFO, m_Sectoin_info);
 }
 
 BEGIN_MESSAGE_MAP(CSLI_PortableExecutableDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_WM_DROPFILES()
+	ON_NOTIFY(NM_RCLICK, IDC_BASIC_INFO, &CSLI_PortableExecutableDlg::OnNMRClickBasicInfo)
+	ON_NOTIFY(NM_RCLICK, IDC_ADDITIONAL_INFO, &CSLI_PortableExecutableDlg::OnNMRClickAdditionalInfo)
+	ON_NOTIFY(NM_RCLICK, IDC_SECTION_INFO, &CSLI_PortableExecutableDlg::OnNMRClickSectionInfo)
+	ON_WM_RBUTTONDOWN()
+	ON_COMMAND(ID_SLI_EXPORT, &CSLI_PortableExecutableDlg::OnSliExport)
 END_MESSAGE_MAP()
 
 
@@ -97,6 +107,11 @@ BOOL CSLI_PortableExecutableDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
 	// TODO: Add extra initialization here
+	DragAcceptFiles(TRUE);
+
+	m_Basic_info.AddColumn(2, L"Name", 150, L"Value", 150);
+	m_Additional_info.AddColumn(4, L"Data_Dir", 180, L"rVA", 100, L"Offset", 100, L"Size", 100);
+	m_Sectoin_info.AddColumn(5, L"Name", 100, L"rVA", 80, L"vSize", 80, L"Offset", 80, L"rawSize", 80);
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -150,3 +165,122 @@ HCURSOR CSLI_PortableExecutableDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+
+
+void CSLI_PortableExecutableDlg::OnDropFiles(HDROP hDropInfo)
+{
+	// TODO: Add your message handler code here and/or call default
+	wchar_t szDropFile[MAX_PATH];
+	DragQueryFile(hDropInfo, 0, szDropFile, 260);
+	if (m_PE.SLI_acquire_PE(szDropFile))
+	{
+		Update_Lists();
+	}
+	else
+	{
+		MessageBox(L"Error get PE info...");
+	}
+	CDialogEx::OnDropFiles(hDropInfo);
+}
+
+
+
+void CSLI_PortableExecutableDlg::Update_Lists()
+{
+	m_Basic_info.DeleteAllItems();
+	m_Additional_info.DeleteAllItems();
+	m_Sectoin_info.DeleteAllItems();
+
+	for (unsigned int i = 0; i < m_PE.m_vecOptional.size(); i++)
+	{
+		m_Basic_info.Additem(i, 2, m_PE.m_vecOptional[i].szItem_Name, m_PE.m_vecOptional[i].szItem_Value);
+	}
+
+	for (unsigned int j = 0; j < m_PE.m_vecDataDir.size(); j++)
+	{
+		wchar_t szRVA[32] = { 0 };
+		wchar_t szOffset[32] = { 0 };
+		wchar_t szSize[32] = { 0 };
+		wsprintf(szRVA, L"%#08X", m_PE.m_vecDataDir[j].uAddress_rVA);
+		wsprintf(szOffset, L"%#08X", m_PE.m_vecDataDir[j].uAddress_Offset);
+		wsprintf(szSize, L"%#08X", m_PE.m_vecDataDir[j].uSize);
+		m_Additional_info.Additem(j, 4, m_PE.m_vecDataDir[j].szDataDirName, szRVA, szOffset, szSize);
+	}
+
+	for (unsigned int k = 0; k < m_PE.m_vecSection.size(); k++)
+	{
+		wchar_t szRVA[32] = { 0 };
+		wchar_t szOffset[32] = { 0 };
+		wchar_t szVSize[32] = { 0 };
+		wchar_t szRSize[32] = { 0 };
+		wsprintf(szRVA, L"%#08X", m_PE.m_vecSection[k].uAddress_rVA);
+		wsprintf(szOffset, L"%#08X", m_PE.m_vecSection[k].uAddress_Offset);
+		wsprintf(szVSize, L"%#08X", m_PE.m_vecSection[k].uSize_virtual);
+		wsprintf(szRSize, L"%#08X", m_PE.m_vecSection[k].uSize_file);
+		m_Sectoin_info.Additem(k, 5, m_PE.m_vecSection[k].szSectionName, szRVA, szVSize, szOffset, szRSize);
+	}
+}
+
+void CSLI_PortableExecutableDlg::OnNMRClickBasicInfo(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
+	// TODO: Add your control notification handler code here
+	CMenu menu;
+	CPoint pt;
+	menu.LoadMenu(IDR_MENU1);
+	GetCursorPos(&pt);
+	menu.GetSubMenu(0)->TrackPopupMenu(TPM_LEFTALIGN | TPM_LEFTBUTTON
+		| TPM_RIGHTBUTTON, pt.x, pt.y, this, NULL);
+	*pResult = 0;
+}
+
+
+void CSLI_PortableExecutableDlg::OnNMRClickAdditionalInfo(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
+	// TODO: Add your control notification handler code here
+	CMenu menu;
+	CPoint pt;
+	menu.LoadMenu(IDR_MENU1);
+	GetCursorPos(&pt);
+	menu.GetSubMenu(0)->TrackPopupMenu(TPM_LEFTALIGN | TPM_LEFTBUTTON
+		| TPM_RIGHTBUTTON, pt.x, pt.y, this, NULL);
+	*pResult = 0;
+}
+
+
+void CSLI_PortableExecutableDlg::OnNMRClickSectionInfo(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
+	// TODO: Add your control notification handler code here
+	CMenu menu;
+	CPoint pt;
+	menu.LoadMenu(IDR_MENU1);
+	GetCursorPos(&pt);
+	menu.GetSubMenu(0)->TrackPopupMenu(TPM_LEFTALIGN | TPM_LEFTBUTTON
+		| TPM_RIGHTBUTTON, pt.x, pt.y, this, NULL);
+	*pResult = 0;
+}
+
+
+
+
+void CSLI_PortableExecutableDlg::OnRButtonDown(UINT nFlags, CPoint point)
+{
+	// TODO: Add your message handler code here and/or call default
+	CMenu menu;
+	menu.LoadMenu(IDR_MENU1);
+	GetCursorPos(&point);
+	menu.GetSubMenu(0)->TrackPopupMenu(TPM_LEFTALIGN | TPM_LEFTBUTTON
+		| TPM_RIGHTBUTTON, point.x, point.y, this, NULL);
+	CDialogEx::OnRButtonDown(nFlags, point);
+}
+
+
+void CSLI_PortableExecutableDlg::OnSliExport()
+{
+	// TODO: Add your command handler code here
+	CSLI_EXPORT sli_Export;
+	sli_Export.m_PE = &m_PE;
+	sli_Export.DoModal();
+}

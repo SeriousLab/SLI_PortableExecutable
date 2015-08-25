@@ -40,8 +40,8 @@ static wchar_t szHeader_Info[20][32] = {
 	L"File_Alignment",
 	L"Section_Alignment",
 	L"OS_Version",
-	L"Code_Base",
-	L"Data_Base",
+	L"Base_Of_Code",
+	L"Base_Of_Data",
 	L"Check_Sum",
 	L"DLL_Characteristics",
 	L"Stack_Reserve",
@@ -163,7 +163,7 @@ BOOL CSLI_PE::SLI_acquire_Data_Dir(ULONGLONG uAddress)
 	}
 	else
 	{
-		PIMAGE_NT_HEADERS32 pNT_Header = (PIMAGE_NT_HEADERS32)pDOS_Header->e_lfanew;
+		PIMAGE_NT_HEADERS32 pNT_Header = (PIMAGE_NT_HEADERS32)(pDOS_Header->e_lfanew + uAddress);
 		PIMAGE_OPTIONAL_HEADER32 pOPTIONAL_Header = &(pNT_Header->OptionalHeader);
 		pDATA_Directory = (PIMAGE_DATA_DIRECTORY)pOPTIONAL_Header->DataDirectory;
 	}
@@ -239,7 +239,7 @@ ULONGLONG CSLI_PE::SLI_rVA_2_Offset(ULONGLONG rVA, ULONGLONG uAddress)
 //|-uAddress is the loaded address.
 //The bool type return value is just for fast locating of error in test.(well, mainly.
 
-ULONGLONG CSLI_PE::SLI_acquire_Sections(ULONGLONG uAddress)
+BOOL CSLI_PE::SLI_acquire_Sections(ULONGLONG uAddress)
 {
 	//This one is quite like the rVA_Offset conversion, the only difference is to obtain 
 	//difference kind of information.
@@ -271,11 +271,12 @@ ULONGLONG CSLI_PE::SLI_acquire_Sections(ULONGLONG uAddress)
 		stcSection.uAttributes = pSECTION_Header[i].Characteristics;
 		stcSection.uSize_file = pSECTION_Header[i].SizeOfRawData;
 		stcSection.uSize_virtual = pSECTION_Header[i].Misc.VirtualSize;
+		stcSection.uAddress_Offset = SLI_rVA_2_Offset(pSECTION_Header[i].VirtualAddress, uAddress);
 		wsprintf(stcSection.szSectionName, L"%8S", pSECTION_Header[i].Name);
 		m_vecSection.push_back(stcSection);
 	}
 
-	return pFILE_Header->NumberOfSections;
+	return TRUE;
 }
 
 
@@ -405,7 +406,7 @@ BOOL CSLI_PE::SLI_acquire_Header_Info(ULONGLONG uAddress)
 
 		//Twentieth, Section count.
 		//This one is also in IMAGE_FILE_HEADER.
-		wsprintf(stcOptional_Header.szItem_Name, L"ls", szHeader_Info[19]);
+		wsprintf(stcOptional_Header.szItem_Name, L"%ls", szHeader_Info[19]);
 		wsprintf(stcOptional_Header.szItem_Value, L"%#04X", pNT_Header->FileHeader.NumberOfSections);
 		m_vecOptional.push_back(stcOptional_Header);
 
@@ -517,7 +518,7 @@ BOOL CSLI_PE::SLI_acquire_Header_Info(ULONGLONG uAddress)
 
 		//Twentieth, Section count.
 		//This one is also in IMAGE_FILE_HEADER.
-		wsprintf(stcOptional_Header.szItem_Name, L"ls", szHeader_Info[19]);
+		wsprintf(stcOptional_Header.szItem_Name, L"%ls", szHeader_Info[19]);
 		wsprintf(stcOptional_Header.szItem_Value, L"%#04X", pNT_Header->FileHeader.NumberOfSections);
 		m_vecOptional.push_back(stcOptional_Header);
 
@@ -666,7 +667,7 @@ BOOL CSLI_PE::SLI_acquire_ExportTable(ULONGLONG uAddress)
 	//Before that, there is a need to declare pointers towards those address we acquired earlier.
 	PDWORD pAddress_Table = (PDWORD)(m_Export.uFunction_Address_Table + uAddress);
 	PDWORD pName_Table = (PDWORD)(m_Export.uName_Table_Address + uAddress);
-	PDWORD pIndex_Table = (PDWORD)(m_Export.uIndex_Table_Address + uAddress);
+	PWORD pIndex_Table = (PWORD)(m_Export.uIndex_Table_Address + uAddress);
 
 	for (DWORD dwOrdinal = 0; dwOrdinal < pExport->NumberOfFunctions; dwOrdinal++)
 	{
@@ -754,7 +755,7 @@ BOOL CSLI_PE::SLI_acquire_ImportTable(ULONGLONG uAddress)
 
 	PIMAGE_IMPORT_DESCRIPTOR pImport = (PIMAGE_IMPORT_DESCRIPTOR)(uAddress + uImport_Offset);
 
-	//The trick point here is that the import table is an array of such structure, IMAGE_IMPORT_DESCRIPTOR.
+	//The tricky point here is that the import table is an array of such structure, IMAGE_IMPORT_DESCRIPTOR.
 	//It does not have a count, so we have no idea of how many IMAGE_IMPORT_DESCRIPTOR there are in this file.
 	//So, we use loop.
 	//A full-zero structure indicates a termination of the array. If it's not zero, it's valid.
@@ -762,8 +763,8 @@ BOOL CSLI_PE::SLI_acquire_ImportTable(ULONGLONG uAddress)
 	{
 		SLI_IMPORT_MODULES import_Module = { 0 };
 		wsprintf(import_Module.szModuleName, L"%S", (PCHAR)(SLI_rVA_2_Offset(pImport->Name, uAddress) + uAddress));
-		import_Module.uAddress_INT = SLI_rVA_2_Offset(pImport->FirstThunk, uAddress);
-		import_Module.uAddress_IAT = SLI_rVA_2_Offset(pImport->OriginalFirstThunk, uAddress);
+		import_Module.uAddress_INT = SLI_rVA_2_Offset(pImport->OriginalFirstThunk, uAddress);
+		import_Module.uAddress_IAT = SLI_rVA_2_Offset(pImport->FirstThunk, uAddress);
 
 		//Now, here is the thing. We know which DLL it is, but getting out those functions imported is a trick part.
 		//Because those thing are platform specified.
@@ -847,6 +848,8 @@ BOOL CSLI_PE::SLI_acquire_ImportTable(ULONGLONG uAddress)
 				pThunk_Data++;
 			}
 		}
+		m_vecImportTable.push_back(import_Module);
+
 		//To the next imported DLL.
 		pImport++;
 	}
@@ -855,3 +858,123 @@ BOOL CSLI_PE::SLI_acquire_ImportTable(ULONGLONG uAddress)
 
 
 
+//BOOL CSLI_PE::SLI_Load_File(wchar_t* szFilePath)
+//Load PE file into memory
+//|-[szFilePath] is the absolute path to the file.
+//Returns whether the file had been successfully loaded.
+BOOL CSLI_PE::SLI_Load_File(wchar_t* szFilePath)
+{
+	//Prepare a handle.
+	HANDLE hFile = NULL;
+	DWORD dwSize = 0;
+	DWORD dwRet = 0;
+	PVOID lpFileImage = nullptr;
+
+	//Open the file, and get its handle.
+	hFile = CreateFile(szFilePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
+		return FALSE;
+	}
+
+	//Get the target file's size.
+	dwSize = GetFileSize(hFile, NULL);
+	if (dwSize == INVALID_FILE_SIZE)
+	{
+		CloseHandle(hFile);
+		return FALSE;
+	}
+
+	//Allocate a piece of memory to load the target file.
+	lpFileImage = VirtualAlloc(NULL, dwSize, MEM_COMMIT, PAGE_READWRITE);
+	if (lpFileImage == NULL)
+	{
+		CloseHandle(hFile);
+		return FALSE;
+	}
+
+	//Loading...
+	if (!ReadFile(hFile, lpFileImage, dwSize, &dwRet, NULL))
+	{
+		CloseHandle(hFile);
+		VirtualFree(lpFileImage, dwSize, MEM_RELEASE);
+		return FALSE;
+	}
+
+	//Finally.
+	m_LoadedAddress = (ULONGLONG)lpFileImage;
+	m_dwSize = dwSize;
+	CloseHandle(hFile);
+	return TRUE;
+}
+
+
+
+//BOOL CSLI_PE::SLI_acquire_PE(ULONGLONG uAddress, DWORD dwSize)
+//Outer function to perform all those above.
+//|-[uAddress] is the loaded address.
+//|-[dwSize] is the total size of the file.
+//Returns if something is wrong during the process.
+BOOL CSLI_PE::SLI_acquire_PE(wchar_t* szFilePath)
+{
+	//Load the file first.
+	if (!SLI_Load_File(szFilePath))
+	{
+		MessageBox(NULL, L"Error when loading...", L"CSLI_PE_Error", MB_OK);
+		return FALSE;
+	}
+
+	//Check its validation.
+	if (!SLI_is_PE(m_LoadedAddress, m_dwSize))
+	{
+		return FALSE;
+	}
+
+	//Check Platform.
+	if (SLI_is_x64(m_LoadedAddress))
+	{
+		m_x64 = TRUE;
+	}
+	else
+	{
+		m_x64 = FALSE;
+	}
+
+	//Get basic info.
+	if (!SLI_acquire_Header_Info(m_LoadedAddress))
+	{
+		MessageBox(NULL, L"Error acquiring header info...", L"CSLI_PE_Error", MB_OK);
+		return FALSE;
+	}
+
+	//Get data directory.
+	if (!SLI_acquire_Data_Dir(m_LoadedAddress))
+	{
+		MessageBox(NULL, L"Error acquiring data directory...", L"CSLI_PE_Error", MB_OK);
+		return FALSE;
+	}
+
+	//Get sections.
+	if (!SLI_acquire_Sections(m_LoadedAddress))
+	{
+		MessageBox(NULL, L"Error acquiring sections...", L"CSLI_PE_Error", MB_OK);
+		return FALSE;
+	}
+
+	//Get export table.
+	if (!SLI_acquire_ExportTable(m_LoadedAddress))
+	{
+		MessageBox(NULL, L"Error acquiring export table...", L"CSLI_PE_Error", MB_OK);
+		return FALSE;
+	}
+
+	//Get import table.
+	if (!SLI_acquire_ImportTable(m_LoadedAddress))
+	{
+		MessageBox(NULL, L"Error acquiring import table...", L"CSLI_PE_Error", MB_OK);
+		return FALSE;
+	}
+
+	return TRUE;
+
+}

@@ -101,7 +101,9 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="MyListCtrl.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="SLI_EXPORT.h" />
     <ClInclude Include="SLI_PE.h" />
     <ClInclude Include="SLI_PortableExecutable.h" />
     <ClInclude Include="SLI_PortableExecutableDlg.h" />
@@ -109,6 +111,8 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="MyListCtrl.cpp" />
+    <ClCompile Include="SLI_EXPORT.cpp" />
     <ClCompile Include="SLI_PE.cpp" />
     <ClCompile Include="SLI_PortableExecutable.cpp" />
     <ClCompile Include="SLI_PortableExecutableDlg.cpp" />
@@ -129,4 +133,9 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <ProjectExtensions>
+    <VisualStudio>
+      <UserProperties RESOURCE_FILE="SLI_PortableExecutable.rc" />
+    </VisualStudio>
+  </ProjectExtensions>
 </Project>
