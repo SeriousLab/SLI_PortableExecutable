@@ -85,6 +85,42 @@ typedef struct _SLI_RESOURCE_TABLE
 
 }SLI_RESOURCE_TABLE, *PSLI_RESOURCE_TABLE;
 
+
+//Type-offset
+//Hidden structure.
+typedef struct _SLI_TYPE_OFFSET
+{
+	WORD wOffset : 12;
+	WORD wType : 4;
+}SLI_TYPE_OFFSET, *PSLI_TYPE_OFFSET;
+
+
+//relocation detail.
+typedef struct _SLI_RELOCATION_DETAIL
+{
+	DWORD dwIndex;
+	ULONGLONG uAddress_rVA;
+	ULONGLONG uAddress_Offset;
+	DWORD dwType;
+	wchar_t szType[32];
+	union Far_Address
+	{
+		DWORD dwFar_Address;
+		ULONGLONG uFar_Address;
+		//If it is x64, the address pointed to will be 8 bytes.
+	}u;
+}SLI_RELOCATION_DETAIL, *PSLI_RELOCATION_DETAIL;
+
+//Base relocation.
+typedef struct _SLI_RELOCATION_BLOCK
+{
+	wchar_t szSection_Name[9];
+	ULONGLONG uAddress_rVA;
+	ULONGLONG uAddress_Offset;
+	DWORD dwCount;
+	vector<SLI_RELOCATION_DETAIL> m_vecRelocation;
+}SLI_RELOCATION_BLOCK, *PSLI_RELOCATION_BLOCK;
+
 class CSLI_PE
 {
 public:
@@ -104,6 +140,8 @@ private:
 
 	BOOL SLI_acquire_Resources(ULONGLONG uAddress);
 
+	BOOL SLI_acquire_BaseRelocation(ULONGLONG uAddress);
+
 	BOOL SLI_acquire_DebugInfo(ULONGLONG uAddress);
 
 	BOOL SLI_acquire_TLS(ULONGLONG uAddress);
@@ -118,7 +156,13 @@ private:
 
 	ULONGLONG SLI_rVA_2_VA(ULONGLONG rVA, ULONGLONG uAddress);
 
+	ULONGLONG SLI_VA_2_rVA(ULONGLONG VA, ULONGLONG uAddress);
+
 	wchar_t* SLI_acquire_Architecture(WORD wMachine);
+
+	wchar_t* SLI_acquire_Section_Name(ULONGLONG rVA);
+
+	wchar_t* SLI_acquire_Reloc_Description(DWORD dwType);
 
 	BOOL SLI_Load_File(wchar_t* szFilePath);
 
@@ -133,6 +177,8 @@ public:
 	vector<SLI_SECTION> m_vecSection;
 
 	vector<SLI_OPTIONAL_HEADER> m_vecOptional;
+
+	vector<SLI_RELOCATION_BLOCK> m_vecRelocationTable;
 
 	BOOL m_x64 = FALSE;
 

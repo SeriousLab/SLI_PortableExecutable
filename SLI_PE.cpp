@@ -54,6 +54,21 @@ static wchar_t szHeader_Info[20][32] = {
 };
 
 
+static wchar_t szRelocation_Description[12][32] = {
+	L"No relocation[%#02X]",
+	L"Higher 2 bytes[%#02X]",
+	L"Lower 2 bytes[%#02X]",
+	L"Full 4 bytes[%#02X]",
+	L"Combined two type-offset[%#02X]",
+	L"For MISP JUMP[%#02X]",
+	L"Reserved[%#02X]",
+	L"Machine specific[%#02X]",
+	L"Machine specific[%#02X]",
+	L"For MISP16 JUMP[%#02X]",
+	L"x64 relocation[%#02X]",
+	L"Unknown[%#02X]"
+};
+
 
 CSLI_PE::CSLI_PE()
 {
@@ -221,7 +236,7 @@ ULONGLONG CSLI_PE::SLI_rVA_2_Offset(ULONGLONG rVA, ULONGLONG uAddress)
 	{
 		ULONGLONG rVA_Begin = pSECTION_Header[i].VirtualAddress;
 		ULONGLONG rVA_End = pSECTION_Header[i].Misc.VirtualSize + pSECTION_Header[i].VirtualAddress;
-		if (rVA >= rVA_Begin&&rVA < rVA_End)
+		if (rVA >= rVA_Begin && rVA < rVA_End)
 		{
 			return rVA - pSECTION_Header[i].VirtualAddress + pSECTION_Header[i].PointerToRawData;
 		}
@@ -976,5 +991,242 @@ BOOL CSLI_PE::SLI_acquire_PE(wchar_t* szFilePath)
 	}
 
 	return TRUE;
-
 }
+
+
+
+//ULONGLONG CSLI_PE::SLI_Offset_2_rVA(ULONGLONG Offset, ULONGLONG uAddress)
+//Converts offset to rVA.
+//|-[Offset] to be converted.
+//|-[uAddress] loaded address.
+//Returns rVA
+
+ULONGLONG CSLI_PE::SLI_Offset_2_rVA(ULONGLONG Offset, ULONGLONG uAddress)
+{
+	PIMAGE_DOS_HEADER pDOS_Header = (PIMAGE_DOS_HEADER)uAddress;
+
+	PIMAGE_FILE_HEADER pFILE_Header = nullptr;
+	PIMAGE_SECTION_HEADER pSECTION_Header = nullptr;
+
+	//It's actually the same, but I prefer it this way.
+	if (m_x64)
+	{
+		PIMAGE_NT_HEADERS64 pNT_Header = (PIMAGE_NT_HEADERS64)(pDOS_Header->e_lfanew + uAddress);
+		pFILE_Header = &(pNT_Header->FileHeader);
+		pSECTION_Header = IMAGE_FIRST_SECTION(pNT_Header);
+	}
+	else
+	{
+		PIMAGE_NT_HEADERS32 pNT_Header = (PIMAGE_NT_HEADERS32)(pDOS_Header->e_lfanew + uAddress);
+		pFILE_Header = &(pNT_Header->FileHeader);
+		pSECTION_Header = IMAGE_FIRST_SECTION(pNT_Header);
+	}
+
+	for (WORD i = 0; i < pFILE_Header->NumberOfSections; i++)
+	{
+		ULONGLONG rVA_Begin = pSECTION_Header[i].PointerToRawData;
+		ULONGLONG rVA_End = pSECTION_Header[i].PointerToRawData + pSECTION_Header[i].SizeOfRawData;
+
+		if (Offset >= rVA_Begin && Offset < rVA_End)
+		{
+			return Offset - pSECTION_Header[i].PointerToRawData + pSECTION_Header[i].VirtualAddress;
+		}
+	}
+	//Should be unsigned, but who cares.
+	return -1;
+}
+
+
+
+//ULONGLONG CSLI_PE::SLI_rVA_2_VA(ULONGLONG rVA, ULONGLONG uAddress)
+//A simple add.
+//|-[rVA] relative virtual address.
+//|-[uAddress] loaded Address.
+//Here it calculates the theoretical virtual address that is when it's loaded to its Image_base.
+
+ULONGLONG CSLI_PE::SLI_rVA_2_VA(ULONGLONG rVA, ULONGLONG uAddress)
+{
+	PIMAGE_DOS_HEADER pDOS_Header = (PIMAGE_DOS_HEADER)uAddress;
+
+	if (m_x64)
+	{
+		PIMAGE_NT_HEADERS64 pNT_Header = (PIMAGE_NT_HEADERS64)(pDOS_Header->e_lfanew + uAddress);
+		PIMAGE_OPTIONAL_HEADER64 pOPTIONAL_Header = (PIMAGE_OPTIONAL_HEADER64)&(pNT_Header->OptionalHeader);
+		return pOPTIONAL_Header->ImageBase + rVA;
+	}
+	else
+	{
+		PIMAGE_NT_HEADERS32 pNT_Header = (PIMAGE_NT_HEADERS32)(pDOS_Header->e_lfanew + uAddress);
+		PIMAGE_OPTIONAL_HEADER32 pOPTIONAL_Header = (PIMAGE_OPTIONAL_HEADER32)&(pNT_Header->OptionalHeader);
+		return pOPTIONAL_Header->ImageBase + rVA;
+	}
+}
+
+
+
+//ULONGLONG CSLI_PE::SLI_VA_2_rVA(ULONGLONG VA, ULONGLONG uAddress)
+//Converts virtual address to relative virtual address.
+//|-[VA] virtual address.
+//|-[uAddress] loaded address.
+//This function is rarely used, but in calculator.
+
+ULONGLONG CSLI_PE::SLI_VA_2_rVA(ULONGLONG VA, ULONGLONG uAddress)
+{
+	PIMAGE_DOS_HEADER pDOS_Header = (PIMAGE_DOS_HEADER)uAddress;
+
+	if (m_x64)
+	{
+		PIMAGE_NT_HEADERS64 pNT_Header = (PIMAGE_NT_HEADERS64)(pDOS_Header->e_lfanew + uAddress);
+		PIMAGE_OPTIONAL_HEADER64 pOPTIONAL_Header = (PIMAGE_OPTIONAL_HEADER64)&(pNT_Header->OptionalHeader);
+
+		if (VA < pOPTIONAL_Header->ImageBase)
+		{
+			return -1;
+		}
+		else
+		{
+			return VA - pOPTIONAL_Header->ImageBase;
+		}
+	}
+	else
+	{
+		PIMAGE_NT_HEADERS32 pNT_Header = (PIMAGE_NT_HEADERS32)(pDOS_Header->e_lfanew + uAddress);
+		PIMAGE_OPTIONAL_HEADER32 pOPTIONAL_Header = (PIMAGE_OPTIONAL_HEADER32)&(pNT_Header->OptionalHeader);
+
+		if (VA < pOPTIONAL_Header->ImageBase)
+		{
+			return -1;
+		}
+		else
+		{
+			return VA - pOPTIONAL_Header->ImageBase;
+		}
+	}
+}
+
+
+
+//BOOL CSLI_PE::SLI_acquire_Resources(ULONGLONG uAddress)
+//Reads out the resources table of the file.
+//|-[uAddress] loaded address.
+//Boolean value return is for a flag.
+
+BOOL CSLI_PE::SLI_acquire_Resources(ULONGLONG uAddress)
+{
+	//To be written.
+}
+
+
+
+//BOOL CSLI_PE::SLI_acquire_BaseRelocation(ULONGLONG uAddress)
+//Reads out the file's base relocation table.
+//|-[uAddress] is the loaded address.
+//Boolean return is for a flag.
+
+BOOL CSLI_PE::SLI_acquire_BaseRelocation(ULONGLONG uAddress)
+{
+	//This process is much like it of the import table, really.
+	PIMAGE_DOS_HEADER pDOS_Header = (PIMAGE_DOS_HEADER)uAddress;
+
+	PIMAGE_DATA_DIRECTORY pRelocation_Dir = nullptr;
+
+	if (m_x64)
+	{
+		PIMAGE_NT_HEADERS64 pNT_Header = (PIMAGE_NT_HEADERS64)(pDOS_Header->e_lfanew + uAddress);
+		PIMAGE_DATA_DIRECTORY pDATA_Dir = (PIMAGE_DATA_DIRECTORY)(pNT_Header->OptionalHeader.DataDirectory);
+
+		if (pDATA_Dir[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress == 0 || pDATA_Dir[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size == 0)
+		{
+			pDOS_Header = nullptr;
+			pNT_Header = nullptr;
+			pDATA_Dir = nullptr;
+			return FALSE;
+		}
+
+		pRelocation_Dir = &pDATA_Dir[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+	}
+	else
+	{
+		PIMAGE_NT_HEADERS32 pNT_Header = (PIMAGE_NT_HEADERS32)(pDOS_Header->e_lfanew + uAddress);
+		PIMAGE_DATA_DIRECTORY pDATA_Dir = (PIMAGE_DATA_DIRECTORY)(pNT_Header->OptionalHeader.DataDirectory);
+
+		if (pDATA_Dir[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress == 0 || pDATA_Dir[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size == 0)
+		{
+			pDOS_Header = nullptr;
+			pNT_Header = nullptr;
+			pDATA_Dir = nullptr;
+			return FALSE;
+		}
+
+		pRelocation_Dir = &pDATA_Dir[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+	}
+
+	ULONGLONG uRelocation_Offset = SLI_rVA_2_Offset(pRelocation_Dir->VirtualAddress, uAddress);
+	PIMAGE_BASE_RELOCATION pRelocation_Base = (PIMAGE_BASE_RELOCATION)(uRelocation_Offset + uAddress);
+
+	//Like I said before, this thing is pretty much like import table, so, there is no exact number that
+	//we could use in a loop. 
+	while (pRelocation_Base->VirtualAddress)
+	{
+		SLI_RELOCATION_BLOCK reloc_Block = { 0 };
+		wsprintf(reloc_Block.szSection_Name, L"%ls", SLI_acquire_Section_Name(pRelocation_Base->VirtualAddress));
+		reloc_Block.uAddress_rVA = pRelocation_Base->VirtualAddress;
+		reloc_Block.uAddress_Offset = SLI_rVA_2_Offset(pRelocation_Base->VirtualAddress, uAddress);
+		reloc_Block.dwCount = (pRelocation_Base->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(SLI_TYPE_OFFSET);
+
+		//Working out the first type-offset's address.
+		PSLI_TYPE_OFFSET pType = (PSLI_TYPE_OFFSET)(pRelocation_Base + 1);
+
+		for (DWORD i = 0; i < reloc_Block.dwCount; i++)
+		{
+			SLI_RELOCATION_DETAIL reloc_Detail = { 0 };
+			reloc_Detail.dwIndex = i;
+			reloc_Detail.dwType = pType[i].wType;
+			wsprintf(reloc_Detail.szType, L"%ls", SLI_acquire_Reloc_Description(pType[i].wType));
+			reloc_Detail.uAddress_Offset = pType[i].wOffset + reloc_Block.uAddress_Offset;
+			reloc_Detail.uAddress_rVA = pType[i].wOffset + reloc_Block.uAddress_rVA;
+			if (m_x64)
+			{
+				PULONGLONG uFar_address = (PULONGLONG)(pType[i].wOffset + reloc_Block.uAddress_Offset + uAddress);
+				reloc_Detail.u.uFar_Address = *uFar_address;
+			}
+			else
+			{
+				PDWORD dwFar_address = (PDWORD)(pType[i].wOffset + reloc_Block.uAddress_Offset + uAddress);
+				reloc_Detail.u.dwFar_Address = *dwFar_address;
+			}
+			reloc_Block.m_vecRelocation.push_back(reloc_Detail);
+		}
+
+		m_vecRelocationTable.push_back(reloc_Block);
+
+		//Next.
+		pRelocation_Base = (PIMAGE_BASE_RELOCATION)((PULONGLONG)pRelocation_Base + pRelocation_Base->SizeOfBlock);
+	}
+
+	return TRUE;
+}
+
+
+
+//wchar_t* CSLI_PE::SLI_acquire_Reloc_Description(DWORD dwType)
+//Returns text description of relocation type.
+//|-[dwType] type.
+
+wchar_t* CSLI_PE::SLI_acquire_Reloc_Description(DWORD dwType)
+{
+	static wchar_t szDescription[32] = { 0 };
+	if (dwType >= 0 && dwType < 0xb)
+	{
+		wsprintf(szDescription, szRelocation_Description[dwType], dwType);
+	}
+	else
+	{
+		wsprintf(szDescription, szRelocation_Description[0xb], dwType);
+	}
+
+	return szDescription;
+}
+
+
+
