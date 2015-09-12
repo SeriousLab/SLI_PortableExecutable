@@ -7,6 +7,9 @@
 #include "SLI_PortableExecutableDlg.h"
 #include "afxdialogex.h"
 #include "SLI_EXPORT.h"
+#include "SLI_IMPORT.h"
+#include "SLI_RELOCATION.h"
+#include "SLI_DEBUG.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -49,7 +52,7 @@ END_MESSAGE_MAP()
 
 
 CSLI_PortableExecutableDlg::CSLI_PortableExecutableDlg(CWnd* pParent /*=NULL*/)
-: CDialogEx(CSLI_PortableExecutableDlg::IDD, pParent)
+	: CDialogEx(CSLI_PortableExecutableDlg::IDD, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -71,7 +74,10 @@ BEGIN_MESSAGE_MAP(CSLI_PortableExecutableDlg, CDialogEx)
 	ON_NOTIFY(NM_RCLICK, IDC_ADDITIONAL_INFO, &CSLI_PortableExecutableDlg::OnNMRClickAdditionalInfo)
 	ON_NOTIFY(NM_RCLICK, IDC_SECTION_INFO, &CSLI_PortableExecutableDlg::OnNMRClickSectionInfo)
 	ON_WM_RBUTTONDOWN()
-	ON_COMMAND(ID_SLI_EXPORT, &CSLI_PortableExecutableDlg::OnSliExport)
+	ON_COMMAND(ID_VIEW_EXPORT, &CSLI_PortableExecutableDlg::OnViewExport)
+	ON_COMMAND(ID_VIEW_IMPORT, &CSLI_PortableExecutableDlg::OnViewImport)
+	ON_COMMAND(ID_VIEW_RELOC, &CSLI_PortableExecutableDlg::OnViewReloc)
+	ON_COMMAND(ID_VIEW_DEBUG, &CSLI_PortableExecutableDlg::OnViewDebug)
 END_MESSAGE_MAP()
 
 
@@ -277,10 +283,37 @@ void CSLI_PortableExecutableDlg::OnRButtonDown(UINT nFlags, CPoint point)
 }
 
 
-void CSLI_PortableExecutableDlg::OnSliExport()
+void CSLI_PortableExecutableDlg::OnViewExport()
 {
-	// TODO: Add your command handler code here
+	// TODO: 在此添加命令处理程序代码
 	CSLI_EXPORT sli_Export;
 	sli_Export.m_PE = &m_PE;
 	sli_Export.DoModal();
+}
+
+
+void CSLI_PortableExecutableDlg::OnViewImport()
+{
+	// TODO: 在此添加命令处理程序代码
+	CSLI_IMPORT sli_Import;
+	sli_Import.m_PE = &m_PE;
+	sli_Import.DoModal();
+}
+
+
+void CSLI_PortableExecutableDlg::OnViewReloc()
+{
+	// TODO: 在此添加命令处理程序代码
+	CSLI_RELOCATION sli_Reloc;
+	sli_Reloc.m_PE = &m_PE;
+	sli_Reloc.DoModal();
+}
+
+
+void CSLI_PortableExecutableDlg::OnViewDebug()
+{
+	// TODO: 在此添加命令处理程序代码
+	CSLI_DEBUG sli_Debug;
+	sli_Debug.m_PE = &m_PE;
+	sli_Debug.DoModal();
 }

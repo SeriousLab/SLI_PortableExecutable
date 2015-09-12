@@ -43,5 +43,8 @@ public:
 	afx_msg void OnNMRClickAdditionalInfo(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnNMRClickSectionInfo(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnRButtonDown(UINT nFlags, CPoint point);
-	afx_msg void OnSliExport();
+	afx_msg void OnViewExport();
+	afx_msg void OnViewImport();
+	afx_msg void OnViewReloc();
+	afx_msg void OnViewDebug();
 };

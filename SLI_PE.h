@@ -43,7 +43,7 @@ typedef struct _SLI_SECTION
 	ULONGLONG uSize_file;
 	ULONGLONG uSize_virtual;
 	ULONGLONG uAttributes;
-	wchar_t szSectionName[IMAGE_SIZEOF_SHORT_NAME + 1];
+	wchar_t szSectionName[9];
 }SLI_SECTION, *PSLI_SECTION;
 
 
@@ -77,12 +77,22 @@ typedef struct _SLI_EXPORT_TABLE
 }SLI_EXPORT_TABLE, *PSLI_EXPORT_TABLE;
 
 
+
+//I could make this a chain-like structure, but that would be 
+//no different from what Microsoft did. And that makes no sense.
+//So, when I was trying to make up some better design to store 
+//what Microsoft encoded in resource section, I just don't think I can.
+//That's why these two structure will look very weird.
+//Resource is stored in layered structure, and generally, it's three layer.
+//Most PE tools I used or saw is like this. I will try to display this in a tree view.
+//So that, the first layer would be a root to the tree view. Of its sub layers, I would try to
+//simplify them and make them the first layer leaves.
 //Resource table
 typedef struct _SLI_RESOURCE_TABLE
 {
 	wchar_t szTypeName[32];
 	DWORD dwType;
-
+	DWORD dwNumOfSub;
 }SLI_RESOURCE_TABLE, *PSLI_RESOURCE_TABLE;
 
 
@@ -95,7 +105,7 @@ typedef struct _SLI_TYPE_OFFSET
 }SLI_TYPE_OFFSET, *PSLI_TYPE_OFFSET;
 
 
-//relocation detail.
+//Relocation detail.
 typedef struct _SLI_RELOCATION_DETAIL
 {
 	DWORD dwIndex;
@@ -121,6 +131,17 @@ typedef struct _SLI_RELOCATION_BLOCK
 	vector<SLI_RELOCATION_DETAIL> m_vecRelocation;
 }SLI_RELOCATION_BLOCK, *PSLI_RELOCATION_BLOCK;
 
+
+//Debug info
+typedef struct _SLI_DEBUG_INFO
+{
+	wchar_t szType[32];
+	DWORD dwSize;
+	ULONGLONG uAddress_rVA;
+	ULONGLONG uAddress_Offset;
+}SLI_DEBUG_INFO, *PSLI_DEBUG_INFO;
+
+
 class CSLI_PE
 {
 public:
@@ -129,6 +150,8 @@ public:
 
 private:
 	BOOL SLI_is_PE(ULONGLONG uAddress, DWORD dwSize);
+
+	BOOL SLI_is_x64(ULONGLONG uAddress);
 
 	BOOL SLI_acquire_Data_Dir(ULONGLONG uAddress);
 
@@ -148,7 +171,13 @@ private:
 
 	BOOL SLI_acquire_Header_Info(ULONGLONG uAddress);
 
-	BOOL SLI_is_x64(ULONGLONG uAddress);
+	wchar_t* SLI_acquire_Architecture(WORD wMachine);
+
+	wchar_t* SLI_acquire_Section_Name(ULONGLONG rVA, ULONGLONG uAddress);
+
+	wchar_t* SLI_acquire_Reloc_Description(DWORD dwType);
+
+	wchar_t* SLI_acquire_Debug_Description(DWORD dwType);
 
 	ULONGLONG SLI_rVA_2_Offset(ULONGLONG rVA, ULONGLONG uAddress);
 
@@ -157,12 +186,6 @@ private:
 	ULONGLONG SLI_rVA_2_VA(ULONGLONG rVA, ULONGLONG uAddress);
 
 	ULONGLONG SLI_VA_2_rVA(ULONGLONG VA, ULONGLONG uAddress);
-
-	wchar_t* SLI_acquire_Architecture(WORD wMachine);
-
-	wchar_t* SLI_acquire_Section_Name(ULONGLONG rVA);
-
-	wchar_t* SLI_acquire_Reloc_Description(DWORD dwType);
 
 	BOOL SLI_Load_File(wchar_t* szFilePath);
 
@@ -180,6 +203,8 @@ public:
 
 	vector<SLI_RELOCATION_BLOCK> m_vecRelocationTable;
 
+	vector<SLI_DEBUG_INFO> m_vecDebug;
+
 	BOOL m_x64 = FALSE;
 
 	ULONGLONG m_LoadedAddress;
@@ -187,5 +212,7 @@ public:
 	SLI_EXPORT_TABLE m_Export;
 
 	DWORD m_dwSize;
+
+	BOOL m_Data_Dir_Flags[16];
 };
 

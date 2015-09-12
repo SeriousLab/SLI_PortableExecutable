@@ -70,6 +70,23 @@ static wchar_t szRelocation_Description[12][32] = {
 };
 
 
+static wchar_t szDebug_Description[13][32] = {
+	L"Unknown[%#02X]",
+	L"COFF[%#02X]",
+	L"CodeView[%#02X]",
+	L"FPO[%#02X]",
+	L"MISC[%#02X]",
+	L"Exception[%#02X]",
+	L"FixUp[%#02X]",
+	L"OMAP_TO_SRC[%#02X]",
+	L"OMAP_FROM_SRC[%#02X]",
+	L"Borland[%#02X]",
+	L"Reserved[%#02X]",
+	L"CLSID[%#02X]",
+	L"Undefined[%#02X]"
+};
+
+
 CSLI_PE::CSLI_PE()
 {
 }
@@ -163,6 +180,9 @@ BOOL CSLI_PE::SLI_is_x64(ULONGLONG uAddress)
 
 BOOL CSLI_PE::SLI_acquire_Data_Dir(ULONGLONG uAddress)
 {
+	//Erase old data.
+	m_vecDataDir.clear();
+
 	//Acquire DOS header, as always
 	PIMAGE_DOS_HEADER pDOS_Header = (PIMAGE_DOS_HEADER)uAddress;
 
@@ -258,6 +278,9 @@ BOOL CSLI_PE::SLI_acquire_Sections(ULONGLONG uAddress)
 {
 	//This one is quite like the rVA_Offset conversion, the only difference is to obtain 
 	//difference kind of information.
+
+	//Erase old data.
+	m_vecSection.clear();
 
 	PIMAGE_DOS_HEADER pDOS_Header = (PIMAGE_DOS_HEADER)uAddress;
 
@@ -556,48 +579,48 @@ wchar_t* CSLI_PE::SLI_acquire_Architecture(WORD wMachine)
 	{
 	case IMAGE_FILE_MACHINE_UNKNOWN:
 	{
-									   wsprintf(szArchitecture, L"Unknown");
-									   break;
+		wsprintf(szArchitecture, L"Unknown");
+		break;
 	}
 	case IMAGE_FILE_MACHINE_I386:
 	{
-									wsprintf(szArchitecture, L"Intel 386");
-									break;
+		wsprintf(szArchitecture, L"Intel 386");
+		break;
 	}
 	case IMAGE_FILE_MACHINE_POWERPC:
 	{
-									   wsprintf(szArchitecture, L"IBM Power PC Little-Endian");
-									   break;
+		wsprintf(szArchitecture, L"IBM Power PC Little-Endian");
+		break;
 	}
 	case IMAGE_FILE_MACHINE_IA64:
 	{
-									wsprintf(szArchitecture, L"Intel x64");
-									break;
+		wsprintf(szArchitecture, L"Intel x64");
+		break;
 	}
 	case IMAGE_FILE_MACHINE_AMD64:
 	{
-									 wsprintf(szArchitecture, L"AMD x64(K8)");
-									 break;
+		wsprintf(szArchitecture, L"AMD x64(K8)");
+		break;
 	}
 	case IMAGE_FILE_MACHINE_ARM:
 	{
-								   wsprintf(szArchitecture, L"ARM Little-Endian");
-								   break;
+		wsprintf(szArchitecture, L"ARM Little-Endian");
+		break;
 	}
 	case IMAGE_FILE_MACHINE_ALPHA64:
 	{
-									   wsprintf(szArchitecture, L"Alpha x64");
-									   break;
+		wsprintf(szArchitecture, L"Alpha x64");
+		break;
 	}
 	case IMAGE_FILE_MACHINE_ALPHA:
 	{
-									 wsprintf(szArchitecture, L"Alpha AXP");
-									 break;
+		wsprintf(szArchitecture, L"Alpha AXP");
+		break;
 	}
 	default:
 	{
-			   wsprintf(szArchitecture, L"Unknown");
-			   break;
+		wsprintf(szArchitecture, L"Unknown");
+		break;
 	}
 	}
 
@@ -958,37 +981,41 @@ BOOL CSLI_PE::SLI_acquire_PE(wchar_t* szFilePath)
 	//Get basic info.
 	if (!SLI_acquire_Header_Info(m_LoadedAddress))
 	{
-		MessageBox(NULL, L"Error acquiring header info...", L"CSLI_PE_Error", MB_OK);
-		return FALSE;
+		//MessageBox(NULL, L"Error acquiring header info...", L"CSLI_PE_Error", MB_OK);
+		//return FALSE;
 	}
 
 	//Get data directory.
 	if (!SLI_acquire_Data_Dir(m_LoadedAddress))
 	{
-		MessageBox(NULL, L"Error acquiring data directory...", L"CSLI_PE_Error", MB_OK);
-		return FALSE;
+		//MessageBox(NULL, L"Error acquiring data directory...", L"CSLI_PE_Error", MB_OK);
+		//return FALSE;
 	}
 
 	//Get sections.
 	if (!SLI_acquire_Sections(m_LoadedAddress))
 	{
-		MessageBox(NULL, L"Error acquiring sections...", L"CSLI_PE_Error", MB_OK);
-		return FALSE;
+		//MessageBox(NULL, L"Error acquiring sections...", L"CSLI_PE_Error", MB_OK);
+		//return FALSE;
 	}
 
 	//Get export table.
 	if (!SLI_acquire_ExportTable(m_LoadedAddress))
 	{
-		MessageBox(NULL, L"Error acquiring export table...", L"CSLI_PE_Error", MB_OK);
-		return FALSE;
+		//MessageBox(NULL, L"Error acquiring export table...", L"CSLI_PE_Error", MB_OK);
+		//return FALSE;
 	}
 
 	//Get import table.
 	if (!SLI_acquire_ImportTable(m_LoadedAddress))
 	{
-		MessageBox(NULL, L"Error acquiring import table...", L"CSLI_PE_Error", MB_OK);
-		return FALSE;
+		//MessageBox(NULL, L"Error acquiring import table...", L"CSLI_PE_Error", MB_OK);
+		//return FALSE;
 	}
+
+	SLI_acquire_BaseRelocation(m_LoadedAddress);
+
+	SLI_acquire_DebugInfo(m_LoadedAddress);
 
 	return TRUE;
 }
@@ -1114,6 +1141,8 @@ ULONGLONG CSLI_PE::SLI_VA_2_rVA(ULONGLONG VA, ULONGLONG uAddress)
 BOOL CSLI_PE::SLI_acquire_Resources(ULONGLONG uAddress)
 {
 	//To be written.
+	
+	return TRUE;
 }
 
 
@@ -1125,6 +1154,10 @@ BOOL CSLI_PE::SLI_acquire_Resources(ULONGLONG uAddress)
 
 BOOL CSLI_PE::SLI_acquire_BaseRelocation(ULONGLONG uAddress)
 {
+
+	//Erase old date.
+	m_vecRelocationTable.clear();
+
 	//This process is much like it of the import table, really.
 	PIMAGE_DOS_HEADER pDOS_Header = (PIMAGE_DOS_HEADER)uAddress;
 
@@ -1169,7 +1202,7 @@ BOOL CSLI_PE::SLI_acquire_BaseRelocation(ULONGLONG uAddress)
 	while (pRelocation_Base->VirtualAddress)
 	{
 		SLI_RELOCATION_BLOCK reloc_Block = { 0 };
-		wsprintf(reloc_Block.szSection_Name, L"%ls", SLI_acquire_Section_Name(pRelocation_Base->VirtualAddress));
+		wsprintf(reloc_Block.szSection_Name, L"%ls", SLI_acquire_Section_Name(pRelocation_Base->VirtualAddress, uAddress));
 		reloc_Block.uAddress_rVA = pRelocation_Base->VirtualAddress;
 		reloc_Block.uAddress_Offset = SLI_rVA_2_Offset(pRelocation_Base->VirtualAddress, uAddress);
 		reloc_Block.dwCount = (pRelocation_Base->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(SLI_TYPE_OFFSET);
@@ -1201,7 +1234,7 @@ BOOL CSLI_PE::SLI_acquire_BaseRelocation(ULONGLONG uAddress)
 		m_vecRelocationTable.push_back(reloc_Block);
 
 		//Next.
-		pRelocation_Base = (PIMAGE_BASE_RELOCATION)((PULONGLONG)pRelocation_Base + pRelocation_Base->SizeOfBlock);
+		pRelocation_Base = (PIMAGE_BASE_RELOCATION)((ULONGLONG)pRelocation_Base + pRelocation_Base->SizeOfBlock);
 	}
 
 	return TRUE;
@@ -1228,5 +1261,128 @@ wchar_t* CSLI_PE::SLI_acquire_Reloc_Description(DWORD dwType)
 	return szDescription;
 }
 
+
+
+
+//BOOL CSLI_PE::SLI_acquire_DebugInfo(ULONGLONG uAddress)
+//Acquires debug info, but, I actually tried to decode it, only to realize that I am not good enough to do so.
+//|-[uAddress] loaded address.
+//Returns if the function was successfully executed.
+
+BOOL CSLI_PE::SLI_acquire_DebugInfo(ULONGLONG uAddress)
+{
+	PIMAGE_DOS_HEADER pDOS_Header = (PIMAGE_DOS_HEADER)uAddress;
+
+	PIMAGE_DATA_DIRECTORY pDEBUG_Dir = nullptr;
+
+	if (m_x64)
+	{
+		PIMAGE_NT_HEADERS64 pNT_Header = (PIMAGE_NT_HEADERS64)(pDOS_Header->e_lfanew + uAddress);
+
+		PIMAGE_DATA_DIRECTORY pDATA_Dir = (PIMAGE_DATA_DIRECTORY)(pNT_Header->OptionalHeader.DataDirectory);
+
+		if (pDATA_Dir[IMAGE_DIRECTORY_ENTRY_DEBUG].VirtualAddress == 0 || pDATA_Dir[IMAGE_DIRECTORY_ENTRY_DEBUG].Size == 0)
+		{
+			pDOS_Header = nullptr;
+			pNT_Header = nullptr;
+			pDATA_Dir = nullptr;
+			return FALSE;
+		}
+
+		pDEBUG_Dir = &(pDATA_Dir[IMAGE_DIRECTORY_ENTRY_DEBUG]);
+	}
+	else
+	{
+		PIMAGE_NT_HEADERS32 pNT_Header = (PIMAGE_NT_HEADERS32)(pDOS_Header->e_lfanew + uAddress);
+
+		PIMAGE_DATA_DIRECTORY pDATA_Dir = (PIMAGE_DATA_DIRECTORY)(pNT_Header->OptionalHeader.DataDirectory);
+
+		if (pDATA_Dir[IMAGE_DIRECTORY_ENTRY_DEBUG].VirtualAddress == 0 || pDATA_Dir[IMAGE_DIRECTORY_ENTRY_DEBUG].Size == 0)
+		{
+			pDOS_Header = nullptr;
+			pNT_Header = nullptr;
+			pDATA_Dir = nullptr;
+			return FALSE;
+		}
+
+		pDEBUG_Dir = &(pDATA_Dir[IMAGE_DIRECTORY_ENTRY_DEBUG]);
+	}
+
+	ULONGLONG uDebug_Offset = SLI_rVA_2_Offset(pDEBUG_Dir->VirtualAddress, uAddress);
+	PIMAGE_DEBUG_DIRECTORY pDebug = (PIMAGE_DEBUG_DIRECTORY)(uDebug_Offset + uAddress);
+
+	for (DWORD i = 0; i < pDEBUG_Dir->Size / (sizeof(IMAGE_DEBUG_DIRECTORY)); i++)
+	{
+		SLI_DEBUG_INFO debug_info = { 0 };
+		wsprintf(debug_info.szType, L"%ls", SLI_acquire_Debug_Description(pDebug[i].Type));
+		debug_info.dwSize = pDebug[i].SizeOfData;
+		debug_info.uAddress_rVA = pDebug[i].AddressOfRawData;
+		debug_info.uAddress_Offset = pDebug[i].PointerToRawData;
+		m_vecDebug.push_back(debug_info);
+	}
+
+	return TRUE;
+}
+
+
+
+//wchar_t* CSLI_PE::SLI_acquire_Debug_Description(DWORD dwType)
+//Text description for debug directory type.
+//|-[dwType] type.
+//Returns a string.
+
+wchar_t* CSLI_PE::SLI_acquire_Debug_Description(DWORD dwType)
+{
+	static wchar_t szDescription[32] = { 0 };
+	if (dwType >= 0 && dwType < 12)
+	{
+		wsprintf(szDescription, szDebug_Description[dwType], dwType);
+	}
+	else
+	{
+		wsprintf(szDescription, szDebug_Description[12], dwType);
+	}
+
+	return szDescription;
+}
+
+
+
+wchar_t* CSLI_PE::SLI_acquire_Section_Name(ULONGLONG rVA, ULONGLONG uAddress)
+{
+	static wchar_t szSectionName[9] = { 0 };
+
+	PIMAGE_DOS_HEADER pDOS_Header = (PIMAGE_DOS_HEADER)uAddress;
+
+	PIMAGE_FILE_HEADER pFILE_Header = nullptr;
+
+	PIMAGE_SECTION_HEADER pSECTION_Header = nullptr;
+
+	if (m_x64)
+	{
+		PIMAGE_NT_HEADERS64 pNT_Header = (PIMAGE_NT_HEADERS64)(uAddress + pDOS_Header->e_lfanew);
+		pFILE_Header = &(pNT_Header->FileHeader);
+		pSECTION_Header = IMAGE_FIRST_SECTION(pNT_Header);
+	}
+	else
+	{
+		PIMAGE_NT_HEADERS32 pNT_Header = (PIMAGE_NT_HEADERS32)(uAddress + pDOS_Header->e_lfanew);
+		pFILE_Header = &(pNT_Header->FileHeader);
+		pSECTION_Header = IMAGE_FIRST_SECTION(pNT_Header);
+	}
+
+	for (WORD i = 0; i < pFILE_Header->NumberOfSections; i++)
+	{
+		ULONGLONG rVA_Begin = pSECTION_Header[i].VirtualAddress;
+		ULONGLONG rVA_End = pSECTION_Header[i].Misc.VirtualSize + pSECTION_Header[i].VirtualAddress;
+		if (rVA >= rVA_Begin && rVA < rVA_End)
+		{
+			wsprintf(szSectionName, L"%8S", pSECTION_Header[i].Name);
+			return szSectionName;
+		}
+	}
+
+	return NULL;
+}
 
 
